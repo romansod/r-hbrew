@@ -45,6 +45,12 @@ ${BOLD}OPTIONS${NC}
   --uninstall-all            Uninstall all (non-special) tools listed in config
   -h, --help                 Show this help
 
+${BOLD}PRIVATE REPO AUTH${NC}
+  For private repos, auth is resolved in order:
+    1. GH_TOKEN or GITHUB_TOKEN env var (works before gh is installed)
+    2. gh CLI session (after 'gh auth login')
+  Bootstrap: GH_TOKEN=<pat> hbrew --repo you/repo --install-all
+
 ${BOLD}STATUS${NC} (default, no action flag)
   Shows each tool's installation status, version, and whether an update is
   available. If using --repo, also shows whether the remote config has changed.
@@ -104,20 +110,32 @@ resolve_config() {
       fi
     fi
 
-    # Try gh api first (supports private repos), fall back to curl for public
+    # Resolve auth token: GH_TOKEN / GITHUB_TOKEN env var, or gh CLI session
+    # Priority: env var (works without gh installed) > gh CLI (works after gh auth login)
+    local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    if [[ -z "$token" ]] && command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+      token=$(gh auth token 2>/dev/null || true)
+    fi
+
     local fetch_ok=false
-    if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-      local api_path="${REPO}/contents/${raw_url##*/raw.githubusercontent.com/${REPO}/HEAD/}"
-      # Use gh api to download file content (handles private repos)
-      if gh api "repos/${REPO}/contents/${raw_url##*HEAD/}" --jq '.content' 2>/dev/null \
-          | base64 -d > "$cached" 2>/dev/null && [[ -s "$cached" ]]; then
+    local api_path="${raw_url##*HEAD/}"
+
+    if [[ -n "$token" ]]; then
+      # Use GitHub API (handles private repos)
+      if curl -fsSL \
+          -H "Authorization: Bearer $token" \
+          -H "Accept: application/vnd.github.raw+json" \
+          "https://api.github.com/repos/${REPO}/contents/${api_path}" \
+          -o "$cached" 2>/dev/null && [[ -s "$cached" ]]; then
         fetch_ok=true
       fi
     fi
+
     if [[ "$fetch_ok" == false ]]; then
+      # Fall back to unauthenticated curl (public repos only)
       if ! curl -fsSL "$raw_url" -o "$cached" 2>/dev/null; then
         echo -e "${RED}Error: could not fetch config from ${raw_url}${NC}" >&2
-        echo -e "${DIM}Tip: for private repos, ensure 'gh auth login' has been run.${NC}" >&2
+        echo -e "${DIM}For private repos, set GH_TOKEN=<pat> or run 'gh auth login'.${NC}" >&2
         exit 1
       fi
     fi
