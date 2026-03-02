@@ -104,9 +104,22 @@ resolve_config() {
       fi
     fi
 
-    if ! curl -fsSL "$raw_url" -o "$cached" 2>/dev/null; then
-      echo -e "${RED}Error: could not fetch config from ${raw_url}${NC}" >&2
-      exit 1
+    # Try gh api first (supports private repos), fall back to curl for public
+    local fetch_ok=false
+    if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+      local api_path="${REPO}/contents/${raw_url##*/raw.githubusercontent.com/${REPO}/HEAD/}"
+      # Use gh api to download file content (handles private repos)
+      if gh api "repos/${REPO}/contents/${raw_url##*HEAD/}" --jq '.content' 2>/dev/null \
+          | base64 -d > "$cached" 2>/dev/null && [[ -s "$cached" ]]; then
+        fetch_ok=true
+      fi
+    fi
+    if [[ "$fetch_ok" == false ]]; then
+      if ! curl -fsSL "$raw_url" -o "$cached" 2>/dev/null; then
+        echo -e "${RED}Error: could not fetch config from ${raw_url}${NC}" >&2
+        echo -e "${DIM}Tip: for private repos, ensure 'gh auth login' has been run.${NC}" >&2
+        exit 1
+      fi
     fi
 
     [[ -f "$hash_file" ]] && prev_hash=$(cat "$hash_file")
