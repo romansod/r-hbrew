@@ -32,8 +32,13 @@ if [[ -d "$ZSH_CUSTOM" ]]; then
 # hbrew - Homebrew tool manager
 # https://github.com/romansod/r-hbrew
 alias hbrew="$HOME/.local/bin/hbrew"
+
+# Set a default config repo so 'hbrew' works without flags.
+# Uncomment and set your repo:
+# export HBREW_REPO="owner/repo"
 EOF
   echo -e "  ${GREEN}✓${NC} Shell alias written to $ZSH_FILE"
+  echo -e "  ${YELLOW}→${NC}  Set a default repo in $ZSH_FILE by uncommenting HBREW_REPO"
 else
   echo -e "  ${YELLOW}Note:${NC} oh-my-zsh not found — add this to your shell config:"
   echo "    alias hbrew="$HOME/.local/bin/hbrew""

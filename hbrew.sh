@@ -45,11 +45,13 @@ ${BOLD}OPTIONS${NC}
   --uninstall-all            Uninstall all (non-special) tools listed in config
   -h, --help                 Show this help
 
-${BOLD}PRIVATE REPO AUTH${NC}
-  For private repos, auth is resolved in order:
-    1. GH_TOKEN or GITHUB_TOKEN env var (works before gh is installed)
-    2. gh CLI session (after 'gh auth login')
-  Bootstrap: GH_TOKEN=<pat> hbrew --repo you/repo --install-all
+${BOLD}ENV VARS${NC}
+  HBREW_REPO=OWNER/REPO    Default repo (avoids passing --repo every time)
+  GH_TOKEN / GITHUB_TOKEN  GitHub PAT for private repos (used before gh CLI)
+
+${BOLD}PRIVATE REPO BOOTSTRAP${NC}
+  On a fresh machine before gh is installed:
+    GH_TOKEN=<pat> hbrew --repo you/repo --install-all
 
 ${BOLD}STATUS${NC} (default, no action flag)
   Shows each tool's installation status, version, and whether an update is
@@ -74,11 +76,20 @@ ${BOLD}EXAMPLES${NC}
 EOF
 }
 
+_require_arg() {
+  if [[ $# -lt 2 || -z "${2:-}" ]]; then
+    echo -e "${RED}Error: $1 requires a value${NC}" >&2; exit 1
+  fi
+}
+
+# HBREW_REPO env var sets a default repo (avoids typing --repo every time)
+REPO="${HBREW_REPO:-}"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --config)        CONFIG_FILE="$2"; shift 2 ;;
-    --repo)          REPO="$2"; shift 2 ;;
-    --config-path)   CONFIG_PATH="$2"; shift 2 ;;
+    --config)        _require_arg "$1" "${2:-}"; CONFIG_FILE="$2"; shift 2 ;;
+    --repo)          _require_arg "$1" "${2:-}"; REPO="$2"; shift 2 ;;
+    --config-path)   _require_arg "$1" "${2:-}"; CONFIG_PATH="$2"; shift 2 ;;
     --install-all)   ACTION="install"; shift ;;
     --update-all)    ACTION="update"; shift ;;
     --uninstall-all) ACTION="uninstall"; shift ;;
@@ -158,7 +169,10 @@ resolve_config() {
   else
     if [[ ! -f "$DEFAULT_CONFIG" ]]; then
       echo -e "${YELLOW}No config found.${NC}"
-      echo -e "Create ${DEFAULT_CONFIG} or use ${BOLD}--config FILE${NC} / ${BOLD}--repo OWNER/REPO${NC}"
+      echo -e "Options:"
+      echo -e "  Create a local config:  ${DEFAULT_CONFIG}"
+      echo -e "  Use a GitHub repo:      hbrew --repo OWNER/REPO"
+      echo -e "  Set a default repo:     export HBREW_REPO=OWNER/REPO  (add to .zshrc)"
       exit 1
     fi
     CONFIG_FILE="$DEFAULT_CONFIG"
