@@ -250,6 +250,7 @@ find_brew() {
 
 BREW_LIST_CACHE=""
 BREW_OUTDATED_CACHE=""
+_BAR_LINE=""
 
 load_brew_caches() {
   find_brew || return 0
@@ -283,6 +284,8 @@ has_update() {
 }
 
 # ── Progress bar ──────────────────────────────────────────────────────────────
+# progress: overwrite the current line with the bar (no trailing newline).
+# _BAR_LINE holds the last rendered bar so emit() can redraw it.
 progress() {
   local cur=$1 total=$2 label=$3
   local width=32 filled empty bar
@@ -290,21 +293,27 @@ progress() {
   empty=$(( width - filled ))
   bar=$(printf '%*s' "$filled" '' | tr ' ' '█')
   bar+=$(printf '%*s' "$empty" '' | tr ' ' '░')
-  printf "\r  [%s] %d/%d  %-24s" "$bar" "$cur" "$total" "$label"
+  _BAR_LINE=$(printf "  [%s] %d/%d  %-24s" "$bar" "$cur" "$total" "$label")
+  printf "\r\033[K%s" "$_BAR_LINE"
+}
+
+# emit: clear the bar line, print a message, then redraw the bar below it.
+emit() {
+  printf "\r\033[K%s\n%s" "$*" "$_BAR_LINE"
 }
 
 # ── Install homebrew ──────────────────────────────────────────────────────────
 install_homebrew() {
   local log="$CACHE_DIR/homebrew_install.log"
-  echo -e "  ${CYAN}→${NC} Installing Homebrew (this may take a few minutes)..."
+  emit "  ${CYAN}→${NC} Installing Homebrew (this may take a few minutes)..."
   if NONINTERACTIVE=1 /bin/bash -c \
     "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
     >"$log" 2>&1; then
-    echo -e "  ${GREEN}✓${NC} Homebrew installed"
-    echo -e "  ${YELLOW}Note:${NC} Add brew to PATH: eval \"\$(brew shellenv)\" — then restart your shell"
+    emit "  ${GREEN}✓${NC} Homebrew installed"
+    emit "  ${YELLOW}Note:${NC} Add brew to PATH: eval \"\$(brew shellenv)\" — then restart your shell"
     return 0
   else
-    echo -e "  ${RED}✗${NC} Homebrew install failed — log: $log"
+    emit "  ${RED}✗${NC} Homebrew install failed — log: $log"
     return 1
   fi
 }
@@ -313,7 +322,7 @@ install_homebrew() {
 print_note() {
   local notes=$1
   [[ -z "$notes" ]] && return
-  echo -e "    ${YELLOW}Note:${NC} $notes"
+  emit "    ${YELLOW}Note:${NC} $notes"
 }
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -387,10 +396,9 @@ do_install() {
     local name="${names[$i]}" brew="${brews[$i]}" special="${specials[$i]}" notes="${notes_arr[$i]}"
     (( idx++ )) || true
     progress "$idx" "$total" "$name"
-    echo ""
 
     if is_installed "$name" "$brew" "$special"; then
-      echo -e "  ${DIM}↷ $name already installed${NC}"
+      emit "  ${DIM}↷ $name already installed${NC}"
       (( skipped++ )) || true
       continue
     fi
@@ -401,25 +409,25 @@ do_install() {
       BREW_BIN=""
       find_brew || true
     elif [[ -n "$brew" ]]; then
-      find_brew || { echo -e "  ${RED}✗ brew not found — install homebrew first${NC}"; ok=false; }
+      find_brew || { emit "  ${RED}✗ brew not found — install homebrew first${NC}"; ok=false; }
       if [[ "$ok" == true ]]; then
         local log="$CACHE_DIR/${name}_install.log"
         if "$BREW_BIN" install "$brew" >"$log" 2>&1; then
-          echo -e "  ${GREEN}✓${NC} $name installed"
+          emit "  ${GREEN}✓${NC} $name installed"
           print_note "$notes"
           (( installed++ )) || true
         else
-          echo -e "  ${RED}✗${NC} $name failed — log: $log"
-          tail -5 "$log" | sed 's/^/    /' >&2
+          emit "  ${RED}✗${NC} $name failed — log: $log"
+          while IFS= read -r line; do emit "    $line"; done < <(tail -5 "$log")
           (( failed++ )) || true
         fi
       fi
     else
-      echo -e "  ${YELLOW}?${NC} $name: no install method defined"
+      emit "  ${YELLOW}?${NC} $name: no install method defined"
     fi
   done
 
-  echo ""
+  printf "\r\033[K\n"
   echo -e "${BOLD}Done.${NC} installed=${GREEN}${installed}${NC}  skipped=${DIM}${skipped}${NC}  failed=${RED}${failed}${NC}"
   echo ""
 }
@@ -449,22 +457,21 @@ do_update() {
     local name="${names[$i]}" brew="${brews[$i]}" special="${specials[$i]}"
     (( idx++ )) || true
     progress "$idx" "$total" "$name"
-    echo ""
 
     if [[ "$special" == "homebrew" ]]; then
-      echo -e "  ${DIM}↷ homebrew: use 'brew update' to update homebrew itself${NC}"
+      emit "  ${DIM}↷ homebrew: use 'brew update' to update homebrew itself${NC}"
       (( skipped++ )) || true
       continue
     fi
 
     if ! is_installed "$name" "$brew" "$special"; then
-      echo -e "  ${DIM}↷ $name not installed, skipping${NC}"
+      emit "  ${DIM}↷ $name not installed, skipping${NC}"
       (( skipped++ )) || true
       continue
     fi
 
     if ! has_update "$name" "$brew" "$special"; then
-      echo -e "  ${GREEN}✓${NC} $name up to date"
+      emit "  ${GREEN}✓${NC} $name up to date"
       (( skipped++ )) || true
       continue
     fi
@@ -473,16 +480,16 @@ do_update() {
     if "$BREW_BIN" upgrade "$brew" >"$log" 2>&1; then
       local ver
       ver=$("$BREW_BIN" list --versions "$brew" 2>/dev/null | awk '{print $2}' || echo "?")
-      echo -e "  ${GREEN}✓${NC} $name updated → $ver"
+      emit "  ${GREEN}✓${NC} $name updated → $ver"
       (( updated++ )) || true
     else
-      echo -e "  ${RED}✗${NC} $name update failed — log: $log"
-      tail -5 "$log" | sed 's/^/    /' >&2
+      emit "  ${RED}✗${NC} $name update failed — log: $log"
+      while IFS= read -r line; do emit "    $line"; done < <(tail -5 "$log")
       (( failed++ )) || true
     fi
   done
 
-  echo ""
+  printf "\r\033[K\n"
   echo -e "${BOLD}Done.${NC} updated=${GREEN}${updated}${NC}  already-current=${DIM}${skipped}${NC}  failed=${RED}${failed}${NC}"
   echo ""
 }
@@ -512,26 +519,25 @@ do_uninstall() {
     local name="${names[$i]}" brew="${brews[$i]}" special="${specials[$i]}"
     (( idx++ )) || true
     progress "$idx" "$total" "$name"
-    echo ""
 
     if ! is_installed "$name" "$brew" "$special"; then
-      echo -e "  ${DIM}↷ $name not installed, skipping${NC}"
+      emit "  ${DIM}↷ $name not installed, skipping${NC}"
       (( skipped++ )) || true
       continue
     fi
 
     local log="$CACHE_DIR/${name}_uninstall.log"
     if "$BREW_BIN" uninstall "$brew" >"$log" 2>&1; then
-      echo -e "  ${GREEN}✓${NC} $name uninstalled"
+      emit "  ${GREEN}✓${NC} $name uninstalled"
       (( removed++ )) || true
     else
-      echo -e "  ${RED}✗${NC} $name uninstall failed — log: $log"
-      tail -5 "$log" | sed 's/^/    /' >&2
+      emit "  ${RED}✗${NC} $name uninstall failed — log: $log"
+      while IFS= read -r line; do emit "    $line"; done < <(tail -5 "$log")
       (( failed++ )) || true
     fi
   done
 
-  echo ""
+  printf "\r\033[K\n"
   echo -e "${BOLD}Done.${NC} removed=${GREEN}${removed}${NC}  skipped=${DIM}${skipped}${NC}  failed=${RED}${failed}${NC}"
   echo ""
 }
