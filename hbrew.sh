@@ -61,7 +61,7 @@ ${BOLD}CONFIG FORMAT${NC}
   tools:
     - name: atuin
       brew: atuin
-      notes: "Run atuin import auto after install"
+      notes: "echo 'eval \"\$(atuin init zsh)\"' >> ~/.zshrc"
 
     - name: homebrew
       special: homebrew
@@ -310,7 +310,7 @@ install_homebrew() {
     "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
     >"$log" 2>&1; then
     emit "  ${GREEN}✓${NC} Homebrew installed"
-    emit "  ${YELLOW}Note:${NC} Add brew to PATH: eval \"\$(brew shellenv)\" — then restart your shell"
+    emit "  ${YELLOW}Note:${NC} Add brew to PATH — run: echo 'eval \"\$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile"
     return 0
   else
     emit "  ${RED}✗${NC} Homebrew install failed — log: $log"
