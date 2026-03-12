@@ -126,3 +126,4 @@ GH_TOKEN=<your-pat> hbrew --repo you/dotfiles --install-all
 ```
 
 Generate a PAT at github.com/settings/tokens with `repo` scope. Once `gh` is installed, run `gh auth login` and you won't need the token again.
+You may be asked to use sudo in order to access the repo
