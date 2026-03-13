@@ -10,11 +10,7 @@ bash r-hbrew/install.sh
 exec zsh
 ```
 
-This copies `hbrew` to `~/.local/bin/hbrew` and writes an alias to `~/.oh-my-zsh/custom/hbrew.zsh`. If you're not using oh-my-zsh, add this to your shell config manually:
-
-```sh
-alias hbrew="$HOME/.local/bin/hbrew"
-```
+This installs oh-my-zsh (if not already present), copies `hbrew` to `~/.local/bin/hbrew`, and writes an alias to `~/.oh-my-zsh/custom/hbrew.zsh`.
 
 ## Usage
 

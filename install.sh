@@ -26,6 +26,15 @@ cp "$SCRIPT_DIR/hbrew.sh" "$INSTALL_BIN"
 chmod +x "$INSTALL_BIN"
 echo -e "  ${GREEN}✓${NC} Installed to $INSTALL_BIN"
 
+# Install oh-my-zsh if not already present
+if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+  echo -e "  ${BOLD}Installing oh-my-zsh...${NC}"
+  RUNZSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  echo -e "  ${GREEN}✓${NC} oh-my-zsh installed"
+else
+  echo -e "  ${GREEN}✓${NC} oh-my-zsh already installed"
+fi
+
 # Install zsh alias if oh-my-zsh is present
 if [[ -d "$ZSH_CUSTOM" ]]; then
   cat > "$ZSH_FILE" <<'EOF'
