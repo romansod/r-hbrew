@@ -50,7 +50,7 @@ If the remote config has changed since the last run, a notice is shown at the to
 
 ## Config format
 
-A `tools.yaml` file at the root of your repo (or at `configs/tools.yaml`):
+A `tools.yaml` file at the root of your repo (or at `configs/tools.yaml`). This repo ships a ready-to-use example: [`tools.example.yaml`](tools.example.yaml).
 
 ```yaml
 tools:
@@ -106,6 +106,28 @@ hbrew --uninstall-all
 # Config at a non-default path in the repo
 hbrew --repo you/dotfiles --config-path system/tools.yaml
 ```
+
+## Using the example config (no GitHub needed)
+
+If you can't (or don't want to) fetch a config from GitHub, start from the bundled example. From your clone of this repo:
+
+```sh
+# One-off: point hbrew at the example directly
+hbrew --config r-hbrew/tools.example.yaml
+hbrew --config r-hbrew/tools.example.yaml --install-all
+```
+
+Or copy it to the default config location so bare `hbrew` works with no flags and no network access:
+
+```sh
+mkdir -p ~/.config/hbrew
+cp r-hbrew/tools.example.yaml ~/.config/hbrew/tools.yaml
+
+hbrew                # status
+hbrew --install-all  # install everything
+```
+
+Edit `~/.config/hbrew/tools.yaml` to add or remove tools. If you later put the file in your own GitHub repo (as `tools.yaml` at the root), switch to `hbrew --repo you/yourrepo`.
 
 ## Private repos
 

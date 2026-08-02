@@ -1,0 +1,38 @@
+# hbrew example config - system tools
+# https://github.com/romansod/r-hbrew
+#
+# Use directly:      hbrew --config tools.example.yaml
+# Or make it yours:  cp tools.example.yaml ~/.config/hbrew/tools.yaml
+#                    (then bare 'hbrew' picks it up automatically)
+# Or host in a repo: hbrew --repo OWNER/REPO   (as tools.yaml at the repo root)
+
+tools:
+  - name: homebrew
+    special: homebrew
+    notes: "echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile"
+
+  - name: atuin
+    brew: atuin
+    notes: "echo 'eval \"$(atuin init zsh)\"' >> ~/.zshrc"
+
+  - name: broot
+    brew: broot
+    notes: "Launch 'broot' once and type ':install' to enable the 'br' shell function"
+
+  - name: btop
+    brew: btop
+
+  - name: gh
+    brew: gh
+    notes: "Run 'gh auth login' to authenticate with GitHub"
+
+  - name: starship
+    brew: starship
+    notes: "echo 'eval \"$(starship init zsh)\"' >> ~/.zshrc"
+
+  - name: tmux
+    brew: tmux
+    notes: "Multiplexer for the Claude session fleet - splits stay interactive while hooks flag the pane needing input"
+
+  - name: tree
+    brew: tree
