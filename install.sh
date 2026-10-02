@@ -50,7 +50,7 @@ EOF
   echo -e "  ${YELLOW}→${NC}  Set a default repo in $ZSH_FILE by uncommenting HBREW_REPO"
 else
   echo -e "  ${YELLOW}Note:${NC} oh-my-zsh not found — add this to your shell config:"
-  echo "    alias hbrew="$HOME/.local/bin/hbrew""
+  echo "    alias hbrew=\"\$HOME/.local/bin/hbrew\""
 fi
 
 echo ""

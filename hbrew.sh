@@ -352,9 +352,9 @@ do_status() {
       printf "${GREEN}%-18s${NC}" "✓ installed"
       printf "%-12s" "$ver"
       if [[ "$special" != "homebrew" ]] && has_update "$name" "$brew" "$special"; then
-        printf "${YELLOW}update available${NC}"
+        printf '%s' "${YELLOW}update available${NC}"
       else
-        printf "${GREEN}up to date${NC}"
+        printf '%s' "${GREEN}up to date${NC}"
       fi
       echo ""
       [[ -n "$notes" ]] && any_notes=true
