@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Stand-in for curl, first on PATH in every test. No test may reach the
+# network, so any call is recorded and fails.
+echo "$*" >> "$STUB_STATE/curl-calls"
+exit 22

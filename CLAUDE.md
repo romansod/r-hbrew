@@ -10,26 +10,29 @@ updates and uninstalls them. [README.md](README.md) is the user documentation.
 hbrew.sh             The tool. install.sh copies it to ~/.local/bin/hbrew
 install.sh           Installer: copies hbrew.sh, installs oh-my-zsh if missing, writes the alias
 tools.example.yaml   Example config, also the reference for the config format
+tests/hbrew.bats     The test suite (bats)
+tests/stubs/         Stand-ins for brew and curl that the suite puts in front of the real ones
 README.md            Usage, config format, private-repo auth
 ```
 
 ## Setup and verification
 
 ```bash
-make check      # shellcheck on both scripts
+make check      # lint + test
 ```
 
 There is nothing to install in the checkout itself. `make check` needs
-`shellcheck` on `PATH` (`brew install shellcheck`). `make lint` is the same
-check under its own name. There is no automated test suite: behaviour is
-verified by running
-`env -u HBREW_REPO bash hbrew.sh --config tools.example.yaml`, which installs
-nothing. Unset `HBREW_REPO` for that run: when it is set, the repo config is
-used even if `--config` is passed.
+`shellcheck` and `bats` on `PATH` (`brew install shellcheck bats-core`).
 
-**Read the table, not the exit status.** A passing run lists one row per tool
-in the example config. If the embedded parser fails (no `python3`, a syntax
-error in it), the command still exits 0 and prints the header with no rows.
+- `make lint` runs `shellcheck` on both scripts and on the test stubs.
+- `make test` runs `bats tests`. The suite never touches the real brew, the
+  real home directory or the network: brew is replaced through `HBREW_BREW`,
+  `curl` by a stub first on `PATH` that records the call and fails, and the
+  cache and config directories live under the test's temporary directory.
+
+`install.sh` has no tests: it writes to the real home directory and can install
+oh-my-zsh. Check a change to it by reading, and by running the affected lines
+alone.
 
 ## Idioms
 
@@ -54,8 +57,18 @@ error in it), the command still exits 0 and prints the header with no rows.
   `printf` format string is never made of variables alone (`shellcheck`
   SC2059): pass such a string as an argument to `printf '%s'`. A colour beside
   a `%` specifier in the format string is accepted, and `do_status` does it.
-- **A config field or flag change updates three places**: the `usage()` text,
-  `README.md`, and `tools.example.yaml`.
+- **`HBREW_REPO` is a default, not an override.** An explicit `--config` wins
+  over it; `--repo` given on the command line wins over `--config`.
+- **A parser failure fails the run.** The actions read `parse_config` through
+  process substitution, which hides its exit status, so the main block runs the
+  parser once first and exits 1 if it fails. Keep that check when adding an
+  action.
+- **Tests never run the real brew.** A test that leaves `HBREW_BREW` unset
+  would install, upgrade or remove real packages. `setup()` sets it for every
+  test; a test that overrides it points at a path that does not exist.
+- **A behaviour change comes with a test** in `tests/hbrew.bats`.
+- **A config field, flag or environment variable change updates three
+  places**: the `usage()` text, `README.md`, and `tools.example.yaml`.
 
 ## Review
 
