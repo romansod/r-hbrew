@@ -41,8 +41,8 @@ alone.
 
 - **`hbrew.sh` stays one self-contained file.** It is deployed by copying that
   single file, so it cannot source a sibling. Beyond bash it needs `curl`,
-  `python3` (standard library only), `shasum`, and the usual POSIX utilities
-  (`awk`, `grep`, `seq`, `tr`, `tail`); `brew` and `gh` are used when present
+  `python3` (standard library only), `shasum`, `mktemp`, and the usual POSIX
+  utilities (`awk`, `grep`, `seq`, `tr`, `tail`, `rm`); `brew` and `gh` are used when present
   and must not be assumed.
 - **The YAML parser is the embedded Python in `parse_config`**, standard
   library only. Don't add `yq` or PyYAML: hbrew has to run on a fresh machine
@@ -76,7 +76,8 @@ alone.
 - **Test assertions use `[ ... ]` or the helpers in `tests/hbrew.bats`** —
   never `[[ ... ]]` and never a bare `! command`. bats runs under `/bin/bash`
   3.2 on macOS, where a false `[[ ]]` that is not the last command of a test
-  does not fail it, and a `!`-negated command never fails a test on any bash.
+  does not fail it, and neither does a `!`-negated command that is not the
+  last one, on any bash.
 - **A behaviour change comes with a test**, and the test is shown to fail when
   the behaviour is broken.
 - **Documentation follows the change.** A config field updates the `usage()`
