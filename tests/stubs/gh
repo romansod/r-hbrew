@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Stand-in for gh, first on PATH in every test. hbrew falls back to the gh
+# session for a token; the real gh would hand a test the developer's real
+# token and call GitHub. This one is always signed out.
+echo "$*" >> "$STUB_STATE/gh-calls"
+exit 1

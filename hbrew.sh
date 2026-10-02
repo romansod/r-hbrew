@@ -106,9 +106,22 @@ if [[ -n "$CONFIG_FILE" && "$REPO_FROM_FLAG" == false ]]; then
   REPO=""
 fi
 
+# HBREW_BREW names the brew binary outright. An unusable value is an error
+# here, before any action: treated as "brew not found" it would make
+# --install-all try to install Homebrew.
+if [[ -n "${HBREW_BREW:-}" ]] && ! [[ -f "$HBREW_BREW" && -x "$HBREW_BREW" ]]; then
+  echo -e "${RED}Error: HBREW_BREW is not an executable file: ${HBREW_BREW}${NC}" >&2
+  exit 1
+fi
+
 # ── Config resolution ─────────────────────────────────────────────────────────
 CONFIG_UPDATED=false
 CONFIG_SOURCE=""
+# Set by resolve_config in repo mode; written by the main block once the
+# fetched config has parsed, so a failed run does not use up the
+# "config updated" notice.
+PENDING_HASH=""
+PENDING_HASH_FILE=""
 
 resolve_config() {
   if [[ -n "$REPO" ]]; then
@@ -161,7 +174,8 @@ resolve_config() {
 
     [[ -f "$hash_file" ]] && prev_hash=$(cat "$hash_file")
     new_hash=$(shasum -a 256 "$cached" | awk '{print $1}')
-    echo "$new_hash" > "$hash_file"
+    PENDING_HASH="$new_hash"
+    PENDING_HASH_FILE="$hash_file"
 
     if [[ -n "$prev_hash" && "$prev_hash" != "$new_hash" ]]; then
       CONFIG_UPDATED=true
@@ -249,10 +263,8 @@ BREW_BIN=""
 
 find_brew() {
   [[ -n "$BREW_BIN" ]] && return 0
-  # HBREW_BREW names the brew binary outright; no fallback, so a wrong path
-  # reads as "brew not found" rather than silently using another install.
+  # HBREW_BREW, validated at startup, names the brew binary outright.
   if [[ -n "${HBREW_BREW:-}" ]]; then
-    [[ -x "$HBREW_BREW" ]] || return 1
     BREW_BIN="$HBREW_BREW"
     return 0
   fi
@@ -379,7 +391,7 @@ do_status() {
       printf "${DIM}-%s${NC}" ""
       echo ""
     fi
-  done < <(parse_config)
+  done < "$PARSED_TOOLS"
 
   echo ""
   if [[ "$any_notes" == true ]]; then
@@ -396,7 +408,7 @@ do_install() {
   while IFS= read -r name && IFS= read -r brew && IFS= read -r special && IFS= read -r notes && IFS= read -r _blank; do
     [[ -z "$name" ]] && continue
     names+=("$name"); brews+=("$brew"); specials+=("$special"); notes_arr+=("$notes")
-  done < <(parse_config)
+  done < "$PARSED_TOOLS"
 
   local total=${#names[@]}
   echo ""
@@ -455,7 +467,7 @@ do_update() {
   while IFS= read -r name && IFS= read -r brew && IFS= read -r special && IFS= read -r notes && IFS= read -r _blank; do
     [[ -z "$name" ]] && continue
     names+=("$name"); brews+=("$brew"); specials+=("$special")
-  done < <(parse_config)
+  done < "$PARSED_TOOLS"
 
   local total=${#names[@]}
   echo ""
@@ -518,7 +530,7 @@ do_uninstall() {
     [[ -z "$name" ]] && continue
     [[ "$special" == "homebrew" ]] && continue  # skip — uninstall manually
     names+=("$name"); brews+=("$brew"); specials+=("$special")
-  done < <(parse_config)
+  done < "$PARSED_TOOLS"
 
   local total=${#names[@]}
   echo ""
@@ -560,12 +572,22 @@ do_uninstall() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 resolve_config
 
-# Every action reads the parser through process substitution, which hides its
-# exit status: a parser that cannot run would otherwise look like an empty
-# config and a successful run. Check it once, here.
-if ! parse_config >/dev/null; then
+# Parse the config once, here, into a file every action reads. Read through
+# process substitution instead, a parser that could not run looked like an
+# empty config and a successful run, because its exit status was never seen.
+PARSED_TOOLS=$(mktemp "${TMPDIR:-/tmp}/hbrew.XXXXXX")
+trap 'rm -f "$PARSED_TOOLS"' EXIT
+
+if ! parse_config > "$PARSED_TOOLS"; then
   echo -e "${RED}Error: could not parse config: ${CONFIG_SOURCE}${NC}" >&2
   exit 1
+fi
+if [[ ! -s "$PARSED_TOOLS" ]]; then
+  echo -e "${RED}Error: no tools found in config: ${CONFIG_SOURCE}${NC}" >&2
+  exit 1
+fi
+if [[ -n "$PENDING_HASH_FILE" ]]; then
+  echo "$PENDING_HASH" > "$PENDING_HASH_FILE"
 fi
 
 case "$ACTION" in
