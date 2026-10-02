@@ -26,7 +26,9 @@ hbrew [OPTIONS]
   -h, --help             Show help
 
   ENV VARS
-  HBREW_REPO             Default repo, so bare 'hbrew' works without --repo
+  HBREW_REPO             Default repo, so bare 'hbrew' works without --repo;
+                         an explicit --config takes precedence over it
+  HBREW_BREW             Use this brew binary instead of auto-detecting one
   GH_TOKEN / GITHUB_TOKEN  GitHub PAT for private repos (used before gh CLI)
 ```
 

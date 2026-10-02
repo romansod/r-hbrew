@@ -46,7 +46,9 @@ ${BOLD}OPTIONS${NC}
   -h, --help                 Show this help
 
 ${BOLD}ENV VARS${NC}
-  HBREW_REPO=OWNER/REPO    Default repo (avoids passing --repo every time)
+  HBREW_REPO=OWNER/REPO    Default repo (avoids passing --repo every time);
+                           an explicit --config takes precedence over it
+  HBREW_BREW=PATH          Use this brew binary instead of auto-detecting one
   GH_TOKEN / GITHUB_TOKEN  GitHub PAT for private repos (used before gh CLI)
 
 ${BOLD}PRIVATE REPO BOOTSTRAP${NC}
@@ -82,13 +84,15 @@ _require_arg() {
   fi
 }
 
-# HBREW_REPO env var sets a default repo (avoids typing --repo every time)
+# HBREW_REPO env var sets a default repo (avoids typing --repo every time).
+# It is only a default: an explicit --config on the command line wins over it.
 REPO="${HBREW_REPO:-}"
+REPO_FROM_FLAG=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)        _require_arg "$1" "${2:-}"; CONFIG_FILE="$2"; shift 2 ;;
-    --repo)          _require_arg "$1" "${2:-}"; REPO="$2"; shift 2 ;;
+    --repo)          _require_arg "$1" "${2:-}"; REPO="$2"; REPO_FROM_FLAG=true; shift 2 ;;
     --config-path)   _require_arg "$1" "${2:-}"; CONFIG_PATH="$2"; shift 2 ;;
     --install-all)   ACTION="install"; shift ;;
     --update-all)    ACTION="update"; shift ;;
@@ -97,6 +101,10 @@ while [[ $# -gt 0 ]]; do
     *) echo -e "${RED}Unknown option: $1${NC}" >&2; usage; exit 1 ;;
   esac
 done
+
+if [[ -n "$CONFIG_FILE" && "$REPO_FROM_FLAG" == false ]]; then
+  REPO=""
+fi
 
 # ── Config resolution ─────────────────────────────────────────────────────────
 CONFIG_UPDATED=false
@@ -241,6 +249,13 @@ BREW_BIN=""
 
 find_brew() {
   [[ -n "$BREW_BIN" ]] && return 0
+  # HBREW_BREW names the brew binary outright; no fallback, so a wrong path
+  # reads as "brew not found" rather than silently using another install.
+  if [[ -n "${HBREW_BREW:-}" ]]; then
+    [[ -x "$HBREW_BREW" ]] || return 1
+    BREW_BIN="$HBREW_BREW"
+    return 0
+  fi
   for p in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
     if [[ -x "$p" ]]; then BREW_BIN="$p"; return 0; fi
   done
@@ -544,6 +559,14 @@ do_uninstall() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 resolve_config
+
+# Every action reads the parser through process substitution, which hides its
+# exit status: a parser that cannot run would otherwise look like an empty
+# config and a successful run. Check it once, here.
+if ! parse_config >/dev/null; then
+  echo -e "${RED}Error: could not parse config: ${CONFIG_SOURCE}${NC}" >&2
+  exit 1
+fi
 
 case "$ACTION" in
   status)    do_status ;;

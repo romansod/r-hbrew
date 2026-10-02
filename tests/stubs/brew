@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Stand-in for brew, selected through HBREW_BREW. State lives in $STUB_STATE:
+#   installed       one formula per line: what `brew list --formula` reports
+#   outdated        one formula per line: what `brew outdated --formula` reports
+#   fail            one "<subcommand> <formula>" per line that should fail
+#   outdated-fails  if present, `brew outdated` exits non-zero
+#   calls           every invocation is appended here, one per line
+set -u
+echo "$*" >> "$STUB_STATE/calls"
+
+fails() { [[ -f "$STUB_STATE/fail" ]] && grep -qx "$1 $2" "$STUB_STATE/fail"; }
+
+case "${1:-}" in
+  --version)
+    echo "Homebrew 9.9.9"
+    ;;
+  list)
+    if [[ "${2:-}" == "--formula" ]]; then
+      cat "$STUB_STATE/installed" 2>/dev/null || true
+    elif [[ "${2:-}" == "--versions" ]]; then
+      echo "$3 1.2.3"
+    fi
+    ;;
+  outdated)
+    [[ -f "$STUB_STATE/outdated-fails" ]] && { echo "Error: outdated failed" >&2; exit 1; }
+    cat "$STUB_STATE/outdated" 2>/dev/null || true
+    ;;
+  update)
+    ;;
+  install | upgrade | uninstall)
+    if fails "$1" "$2"; then
+      echo "Error: $1 $2 failed (stub)"
+      exit 1
+    fi
+    ;;
+  *)
+    echo "stub brew: unexpected invocation: $*" >&2
+    exit 64
+    ;;
+esac
