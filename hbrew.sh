@@ -236,6 +236,8 @@ if current is not None:
     tools.append(current)
 
 for t in tools:
+    if not t['name']:
+        continue  # an entry with no name is not a tool; none at all is an error upstream
     print(t['name'])
     print(t['brew'])
     print(t['special'])

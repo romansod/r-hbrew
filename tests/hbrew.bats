@@ -6,9 +6,9 @@
 #
 # ASSERTIONS: use `[ ... ]` or the helpers below, never `[[ ... ]]` and never a
 # bare `! command`. bats runs under /bin/bash 3.2 on macOS, where a false
-# `[[ ]]` that is not the last command of a test does not fail it, and a
-# command negated with `!` never fails a test on any bash. A helper that
-# returns non-zero always does.
+# `[[ ]]` that is not the last command of a test does not fail it, and neither
+# does a `!`-negated command that is not the last one, on any bash. A helper
+# that returns non-zero always does.
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
@@ -190,6 +190,15 @@ path_without_python3() {
   no_file_content curl-calls
 }
 
+@test "an HBREW_BREW that is a file without the executable bit is an error" {
+  local plain="$BATS_TEST_TMPDIR/not-executable"
+  : > "$plain"
+  HBREW_BREW="$plain" hbrew --config "$EXAMPLE"
+  exits 1
+  has "HBREW_BREW is not an executable file"
+  lacks "TOOL"
+}
+
 @test "an HBREW_BREW that is a directory is an error" {
   HBREW_BREW="$BATS_TEST_TMPDIR" hbrew --config "$EXAMPLE"
   exits 1
@@ -256,6 +265,20 @@ path_without_python3() {
   has "Config updated from GitHub"
 }
 
+@test "a run that finds no tools in a changed repo config does not save its hash" {
+  local sha="$XDG_CACHE_HOME/hbrew/tools.yaml.sha" before
+  remote_config "$EXAMPLE"
+  hbrew --repo nobody/nothing
+  exits 0
+  before="$(cat "$sha")"
+  [ -n "$before" ]
+  printf 'not a tools file\n' > "$STUB_STATE/remote-config"
+  hbrew --repo nobody/nothing
+  exits 1
+  has "no tools found in config"
+  [ "$(cat "$sha")" = "$before" ]
+}
+
 @test "a token from GH_TOKEN is sent to the GitHub API and never logged" {
   remote_config "$EXAMPLE"
   GH_TOKEN="sekrit-token-value" hbrew --repo nobody/nothing
@@ -318,6 +341,29 @@ path_without_python3() {
   lacks "TOOL"
 }
 
+@test "an entry with no name is not a tool" {
+  local cfg="$BATS_TEST_TMPDIR/blank.yaml"
+  printf 'tools:\n  - name:\n    brew: tree\n' > "$cfg"
+  hbrew --config "$cfg" --install-all
+  exits 1
+  has "no tools found in config"
+  no_file_content calls
+}
+
+@test "the config is parsed exactly once per run, whatever the action" {
+  local shim="$BATS_TEST_TMPDIR/shim" real action
+  real="$(command -v python3)"
+  mkdir -p "$shim"
+  printf '#!/bin/sh\necho run >> "%s/python-runs"\nexec "%s" "$@"\n' "$STUB_STATE" "$real" > "$shim/python3"
+  chmod +x "$shim/python3"
+  for action in "" --install-all --update-all --uninstall-all; do
+    : > "$STUB_STATE/python-runs"
+    PATH="$shim:$PATH" hbrew --config "$EXAMPLE" $action
+    exits 0
+    [ "$(grep -c run "$STUB_STATE/python-runs")" -eq 1 ]
+  done
+}
+
 @test "quotes around a note are stripped and the note is shown after install" {
   local cfg="$BATS_TEST_TMPDIR/one.yaml"
   printf 'tools:\n  - name: broot\n    brew: broot\n    notes: "Launch broot once"\n' > "$cfg"
@@ -336,11 +382,17 @@ path_without_python3() {
   brew_call_count install 0
 }
 
-@test "the parsed-config temp file is removed when the run ends" {
+@test "the parsed-config temp file is removed when the run ends, also on an error exit" {
   export TMPDIR="$BATS_TEST_TMPDIR/tmp"
   mkdir -p "$TMPDIR"
   hbrew --config "$EXAMPLE"
   exits 0
+  [ -z "$(ls -A "$TMPDIR")" ]
+  hbrew --config "$REPO_ROOT/Makefile"
+  exits 1
+  [ -z "$(ls -A "$TMPDIR")" ]
+  PATH="$(path_without_python3)" hbrew --config "$EXAMPLE"
+  exits 1
   [ -z "$(ls -A "$TMPDIR")" ]
 }
 
