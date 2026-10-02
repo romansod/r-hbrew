@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Stand-in for brew, selected through HBREW_BREW. State lives in $STUB_STATE:
-#   installed       one formula per line: what `brew list --formula` reports
-#   outdated        one formula per line: what `brew outdated --formula` reports
-#   fail            one "<subcommand> <formula>" per line that should fail
-#   outdated-fails  if present, `brew outdated` exits non-zero
-#   calls           every invocation is appended here, one per line
+#   installed   one formula per line: what `brew list --formula` reports
+#   outdated    one formula per line: what `brew outdated --formula` reports
+#   fail        one "<subcommand> <formula>" per line that should fail
+#   calls       every invocation is appended here, one per line
 set -u
 echo "$*" >> "$STUB_STATE/calls"
 
@@ -22,7 +21,6 @@ case "${1:-}" in
     fi
     ;;
   outdated)
-    [[ -f "$STUB_STATE/outdated-fails" ]] && { echo "Error: outdated failed" >&2; exit 1; }
     cat "$STUB_STATE/outdated" 2>/dev/null || true
     ;;
   update)

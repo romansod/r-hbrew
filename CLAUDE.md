@@ -11,7 +11,7 @@ hbrew.sh             The tool. install.sh copies it to ~/.local/bin/hbrew
 install.sh           Installer: copies hbrew.sh, installs oh-my-zsh if missing, writes the alias
 tools.example.yaml   Example config, also the reference for the config format
 tests/hbrew.bats     The test suite (bats)
-tests/stubs/         Stand-ins for brew and curl that the suite puts in front of the real ones
+tests/stubs/         Stand-ins for brew, curl and gh that the suite puts in front of the real ones
 README.md            Usage, config format, private-repo auth
 ```
 
@@ -26,9 +26,12 @@ There is nothing to install in the checkout itself. `make check` needs
 
 - `make lint` runs `shellcheck` on both scripts and on the test stubs.
 - `make test` runs `bats tests`. The suite never touches the real brew, the
-  real home directory or the network: brew is replaced through `HBREW_BREW`,
-  `curl` by a stub first on `PATH` that records the call and fails, and the
-  cache and config directories live under the test's temporary directory.
+  real `gh` session, the real home directory or the network. brew is replaced
+  through `HBREW_BREW`. `curl` and `gh` are replaced by stubs first on `PATH`:
+  the curl stub records each call with any `Authorization` value redacted and
+  serves a canned config when a test provides one, and the gh stub is always
+  signed out. The cache and config directories live under the test's temporary
+  directory.
 
 `install.sh` has no tests: it writes to the real home directory and can install
 oh-my-zsh. Check a change to it by reading, and by running the affected lines
@@ -59,16 +62,26 @@ alone.
   a `%` specifier in the format string is accepted, and `do_status` does it.
 - **`HBREW_REPO` is a default, not an override.** An explicit `--config` wins
   over it; `--repo` given on the command line wins over `--config`.
-- **A parser failure fails the run.** The actions read `parse_config` through
-  process substitution, which hides its exit status, so the main block runs the
-  parser once first and exits 1 if it fails. Keep that check when adding an
-  action.
-- **Tests never run the real brew.** A test that leaves `HBREW_BREW` unset
-  would install, upgrade or remove real packages. `setup()` sets it for every
-  test; a test that overrides it points at a path that does not exist.
-- **A behaviour change comes with a test** in `tests/hbrew.bats`.
-- **A config field, flag or environment variable change updates three
-  places**: the `usage()` text, `README.md`, and `tools.example.yaml`.
+- **The config is parsed once.** The main block runs `parse_config` into a
+  temporary file and exits 1 if the parser fails or finds no tools; every
+  action reads that file (`"$PARSED_TOOLS"`). A new action reads it too, and
+  never calls `parse_config` through process substitution, which hides the
+  parser's exit status.
+- **`HBREW_BREW` is validated at startup.** Set to anything but an executable
+  file, it is an error before any action runs. Treated as "brew not found" it
+  would make `--install-all` try to install Homebrew.
+- **Tests never run the real brew or the real gh.** A test that leaves
+  `HBREW_BREW` unset would install, upgrade or remove real packages; `setup()`
+  sets it for every test.
+- **Test assertions use `[ ... ]` or the helpers in `tests/hbrew.bats`** —
+  never `[[ ... ]]` and never a bare `! command`. bats runs under `/bin/bash`
+  3.2 on macOS, where a false `[[ ]]` that is not the last command of a test
+  does not fail it, and a `!`-negated command never fails a test on any bash.
+- **A behaviour change comes with a test**, and the test is shown to fail when
+  the behaviour is broken.
+- **Documentation follows the change.** A config field updates the `usage()`
+  text, `README.md` and `tools.example.yaml`; a flag or environment variable
+  updates `usage()` and `README.md`.
 
 ## Review
 

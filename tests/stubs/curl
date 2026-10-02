@@ -1,5 +1,33 @@
 #!/usr/bin/env bash
-# Stand-in for curl, first on PATH in every test. No test may reach the
-# network, so any call is recorded and fails.
-echo "$*" >> "$STUB_STATE/curl-calls"
-exit 22
+# Stand-in for curl, first on PATH in every test, so no test reaches the
+# network. Every call is recorded in $STUB_STATE/curl-calls with any
+# Authorization value redacted: a token must never land in a log, even a
+# test's.
+#
+# With $STUB_STATE/remote-config present the call succeeds and that file is
+# what was "fetched" (written to the -o target). Without it the call fails
+# the way curl -f does on a 404.
+set -u
+
+logged=()
+out=""
+want_out=false
+for arg in "$@"; do
+  case "$arg" in
+    Authorization:*) logged+=("Authorization: [redacted]") ;;
+    *) logged+=("$arg") ;;
+  esac
+  if [[ "$want_out" == true ]]; then
+    out="$arg"
+    want_out=false
+  elif [[ "$arg" == "-o" ]]; then
+    want_out=true
+  fi
+done
+echo "${logged[*]}" >> "$STUB_STATE/curl-calls"
+
+[[ -f "$STUB_STATE/remote-config" ]] || exit 22
+if [[ -n "$out" && "$out" != /dev/null ]]; then
+  cp "$STUB_STATE/remote-config" "$out"
+fi
+exit 0
